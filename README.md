@@ -1,2 +1,2 @@
 # 3d-2-minute-boss-fight
-3d fps game MVP with AI and online multiplayer
+Game flow plan: 2 players spawn into the map. Map has many items. Players pick up items and try to combat each other while also trying to kill the AI boss, all under 2 minutes. After killing the boss, whoever can get the boss skull to an exit area and stay alive for the rest of the 2 minutes win. If a player dies, they drop all items and respawn a little far away from the other player.
