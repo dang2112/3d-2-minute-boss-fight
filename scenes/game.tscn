@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3 uid="uid://emjlxvk6out5"]
+
+[ext_resource type="PackedScene" uid="uid://wm5wkeulavny" path="res://scenes/player_character.tscn" id="1_uwrxv"]
+[ext_resource type="PackedScene" uid="uid://qjhe18alttvy" path="res://scenes/demo_obstacle.tscn" id="2_lnu2h"]
+[ext_resource type="PackedScene" uid="uid://b6aysfyqo2yl8" path="res://scenes/enemy_target.tscn" id="3_lbhrr"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8cj0n"]
+albedo_color = Color(0.811765, 0.823529, 1, 1)
+
+[node name="Game" type="Node3D"]
+
+[node name="FloorCSGProto" type="CSGBox3D" parent="."]
+use_collision = true
+size = Vector3(100, 1, 100)
+material = SubResource("StandardMaterial3D_8cj0n")
+
+[node name="PlayerCharacter" parent="." instance=ExtResource("1_uwrxv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.05495, 0)
+
+[node name="DemoObstacle" parent="." instance=ExtResource("2_lnu2h")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.34508, 0.977057, 0)
+
+[node name="EnemyTarget" parent="." instance=ExtResource("3_lbhrr")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.21216, 1.23221, 0)
