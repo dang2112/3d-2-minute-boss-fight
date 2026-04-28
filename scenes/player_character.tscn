@@ -10,13 +10,13 @@ albedo_color = Color(0, 1, 1, 1)
 [sub_resource type="BoxMesh" id="BoxMesh_56udc"]
 material = SubResource("StandardMaterial3D_56udc")
 
-[node name="PlayerCharacter" type="CharacterBody3D"]
+[node name="PlayerCharacter" type="CharacterBody3D" groups=["players"]]
 script = ExtResource("1_56udc")
 
 [node name="Camera3D" type="Camera3D" parent="."]
 
 [node name="RayCast3D" type="RayCast3D" parent="Camera3D"]
-target_position = Vector3(0, 0, -100)
+target_position = Vector3(0, 0, -20)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 visible = false

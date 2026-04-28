@@ -15,6 +15,10 @@ run/main_scene="uid://emjlxvk6out5"
 config/features=PackedStringArray("4.4", "Forward Plus")
 config/icon="res://icon.svg"
 
+[global_group]
+
+players="players in game"
+
 [input]
 
 move_forward={

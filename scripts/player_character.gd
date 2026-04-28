@@ -11,6 +11,7 @@ const MOUSE_SENS = 0.002
 @onready var ray = $Camera3D/RayCast3D
 
 var y_velocity = 0.0
+var health = 100
 
 func _ready():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
@@ -63,3 +64,7 @@ func shoot():
 		print("Hit: ", collider.name)
 	else:
 		print("Miss")
+
+func take_damage(amount):
+	health -= amount
+	print("Player HP:", health)

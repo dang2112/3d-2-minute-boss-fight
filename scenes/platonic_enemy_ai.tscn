@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3 uid="uid://dbmib3feaytlk"]
+
+[ext_resource type="Script" uid="uid://co40r3nlfkuhw" path="res://scripts/platonic_enemy_ai.gd" id="1_w2qug"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_81lkv"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w2qug"]
+albedo_color = Color(1, 0, 0, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_eggki"]
+material = SubResource("StandardMaterial3D_w2qug")
+
+[node name="PlatonicEnemyAI" type="CharacterBody3D"]
+script = ExtResource("1_w2qug")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_81lkv")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_eggki")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+
+[node name="AttackTimer" type="Timer" parent="."]
