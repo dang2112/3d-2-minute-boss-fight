@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="3d-2-minute-boss-fight"
-run/main_scene="uid://emjlxvk6out5"
+run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
 config/icon="res://icon.svg"
 

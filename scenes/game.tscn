@@ -1,6 +1,5 @@
-[gd_scene load_steps=8 format=3 uid="uid://emjlxvk6out5"]
+[gd_scene load_steps=7 format=3 uid="uid://emjlxvk6out5"]
 
-[ext_resource type="PackedScene" uid="uid://wm5wkeulavny" path="res://scenes/player_character.tscn" id="1_uwrxv"]
 [ext_resource type="PackedScene" uid="uid://qjhe18alttvy" path="res://scenes/demo_obstacle.tscn" id="2_lnu2h"]
 [ext_resource type="PackedScene" uid="uid://b6aysfyqo2yl8" path="res://scenes/enemy_target.tscn" id="3_lbhrr"]
 [ext_resource type="PackedScene" uid="uid://dbmib3feaytlk" path="res://scenes/platonic_enemy_ai.tscn" id="4_lbhrr"]
@@ -27,9 +26,6 @@ material = SubResource("StandardMaterial3D_8cj0n")
 
 [node name="DemoObstacle" parent="NavigationRegion3D" instance=ExtResource("2_lnu2h")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.34508, 0.8787, 0)
-
-[node name="PlayerCharacter" parent="NavigationRegion3D" instance=ExtResource("1_uwrxv")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.91957, 0)
 
 [node name="EnemyTarget" parent="NavigationRegion3D" instance=ExtResource("3_lbhrr")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.21216, 1.09682, 0)

@@ -19,9 +19,7 @@ script = ExtResource("1_56udc")
 target_position = Vector3(0, 0, -20)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-visible = false
 shape = SubResource("BoxShape3D_54dqi")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-visible = false
 mesh = SubResource("BoxMesh_56udc")
