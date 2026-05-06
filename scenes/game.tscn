@@ -1,8 +1,10 @@
-[gd_scene load_steps=7 format=3 uid="uid://emjlxvk6out5"]
+[gd_scene load_steps=8 format=3 uid="uid://emjlxvk6out5"]
 
 [ext_resource type="PackedScene" uid="uid://qjhe18alttvy" path="res://scenes/demo_obstacle.tscn" id="2_lnu2h"]
 [ext_resource type="PackedScene" uid="uid://b6aysfyqo2yl8" path="res://scenes/enemy_target.tscn" id="3_lbhrr"]
 [ext_resource type="PackedScene" uid="uid://dbmib3feaytlk" path="res://scenes/platonic_enemy_ai.tscn" id="4_lbhrr"]
+[ext_resource type="PackedScene" uid="uid://ranged_enemy_res" path="res://scenes/ranged_enemy.tscn" id="6_ranged"]
+[ext_resource type="PackedScene" uid="uid://game_hud_scene_1" path="res://scenes/game_hud.tscn" id="7_hud"]
 [ext_resource type="Script" uid="uid://qgibf15yyk4p" path="res://scripts/network_manager.gd" id="5_iywne"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_lnu2h"]
@@ -33,9 +35,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.21216, 1.09682, 0)
 [node name="PlatonicEnemyAI" parent="NavigationRegion3D" instance=ExtResource("4_lbhrr")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.38566, 1.30363, 0)
 
+[node name="RangedEnemy" parent="NavigationRegion3D" instance=ExtResource("6_ranged")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.0, 1.30363, 0)
+
 [node name="OmniLight3D" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.39118, 5.97082, 0)
 omni_range = 4096.0
 
 [node name="NetworkManager" type="Node" parent="."]
 script = ExtResource("5_iywne")
+
+[node name="HUD" parent="." instance=ExtResource("7_hud")]

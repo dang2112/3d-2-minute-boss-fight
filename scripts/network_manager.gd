@@ -11,15 +11,44 @@ extends Node
 const PORT := 12345
 const PLAYER_SPAWN_POSITION := Vector3(0, 8, 0)
 const PLAYER_SCENE := preload("res://scenes/player_character.tscn")
+const ITEM_SCENE := preload("res://scenes/item.tscn")
+const RANGED_SCENE := preload("res://scenes/ranged_enemy.tscn")
 const MAIN_MENU_SCENE := "res://scenes/main_menu.tscn"
+
+# Item spawn data: [position, item_type]
+const ITEM_SPAWNS := [
+	[Vector3(3, 1.5, 5), 0],  # DAMAGE_BOOST
+	[Vector3(-3, 1.5, 5), 1],  # HEALTH_REGEN
+	[Vector3(3, 1.5, -5), 2],  # SPEED_BOOST
+	[Vector3(-3, 1.5, -5), 0],  # DAMAGE_BOOST
+	[Vector3(0, 1.5, -8), 1],  # HEALTH_REGEN
+]
 
 var peer: ENetMultiplayerPeer
 var players: Dictionary = {}
+var items: Array = []
+var items_spawned := false
 
-@onready var navigation_region: Node3D = $"../NavigationRegion3D"
+func _get_navigation_region() -> Node3D:
+	"""Get or find navigation region"""
+	var root_scene := get_tree().current_scene
+	if root_scene == null:
+		root_scene = get_parent()
+	
+	if root_scene == null:
+		return null
+
+	var found := root_scene.find_child("NavigationRegion3D", true, false)
+	if found is Node3D:
+		return found
+
+	return root_scene.find_child("MapArena", true, false) as Node3D
 
 func _ready():
 	_connect_multiplayer_signals()
+	# Delay spawn items to ensure scene tree is fully loaded
+	await get_tree().process_frame
+	_spawn_items()
 
 func _physics_process(_delta):
 	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
@@ -56,9 +85,6 @@ func _on_peer_connected(peer_id: int):
 	if not multiplayer.is_server():
 		return
 
-	for existing_peer_id in players.keys():
-		spawn_player_remote.rpc_id(peer_id, existing_peer_id, PLAYER_SPAWN_POSITION)
-
 	_spawn_player_for_peer(peer_id)
 
 func _on_peer_disconnected(peer_id: int):
@@ -82,23 +108,14 @@ func _spawn_player_for_peer(peer_id: int):
 	if players.has(peer_id):
 		return
 
-	var player = PLAYER_SCENE.instantiate()
-	player.global_position = PLAYER_SPAWN_POSITION
-	navigation_region.add_child(player)
-	player.configure_for_peer(peer_id)
-	players[peer_id] = player
-
-	if multiplayer.is_server():
-		spawn_player_remote.rpc(peer_id, PLAYER_SPAWN_POSITION)
-
-@rpc("authority", "reliable")
-func spawn_player_remote(peer_id: int, spawn_position: Vector3):
-	if multiplayer.is_server() or players.has(peer_id):
+	var nav_region = _get_navigation_region()
+	if nav_region == null:
+		print("ERROR: Cannot find navigation region to spawn player")
 		return
 
 	var player = PLAYER_SCENE.instantiate()
-	player.global_position = spawn_position
-	navigation_region.add_child(player)
+	nav_region.add_child(player)
+	player.global_position = PLAYER_SPAWN_POSITION
 	player.configure_for_peer(peer_id)
 	players[peer_id] = player
 
@@ -141,10 +158,19 @@ func receive_world_state(state: Dictionary):
 	if multiplayer.is_server():
 		return
 
+	var nav_region = _get_navigation_region()
+	if nav_region == null:
+		return
+
 	for peer_id_string in state["players"].keys():
 		var peer_id = int(peer_id_string)
-		if players.has(peer_id):
-			players[peer_id].apply_sync_state(state["players"][peer_id_string])
+		if not players.has(peer_id):
+			var player = PLAYER_SCENE.instantiate()
+			nav_region.add_child(player)
+			player.configure_for_peer(peer_id)
+			players[peer_id] = player
+
+		players[peer_id].apply_sync_state(state["players"][peer_id_string])
 
 	for synced_object in get_tree().get_nodes_in_group("network_sync_objects"):
 		var object_path = str(synced_object.get_path())
@@ -155,6 +181,30 @@ func receive_world_state(state: Dictionary):
 		var synced_object = get_node_or_null(NodePath(object_path))
 		if synced_object and synced_object.has_method("apply_sync_state"):
 			synced_object.apply_sync_state(state["objects"][object_path])
+
+func _spawn_items():
+	"""Spawn items on server only (will be synced to clients via _broadcast_world_state)"""
+	if items_spawned:
+		return
+	
+	var nav_region = _get_navigation_region()
+	if nav_region == null:
+		print("ERROR: Cannot spawn items - navigation region not found")
+		return
+	
+	for spawn_data in ITEM_SPAWNS:
+		var position = spawn_data[0]
+		var item_type = spawn_data[1]
+		
+		var item = ITEM_SCENE.instantiate()
+		nav_region.add_child(item)
+		item.item_type = item_type
+		item.global_position = position
+		item._apply_item_color()
+		items.append(item)
+
+	items_spawned = true
+	print("Spawned %d items" % items.size())
 
 func _return_to_main_menu():
 	if multiplayer.multiplayer_peer:

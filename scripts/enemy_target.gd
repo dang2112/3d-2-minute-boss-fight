@@ -1,6 +1,9 @@
 extends CharacterBody3D
 
 const GRAVITY = 9.8
+@onready var health_bar = $HealthBar3D
+
+var max_health = 2000
 var health = 2000
 
 func _ready():
@@ -12,6 +15,7 @@ func take_damage(amount):
 
 	health -= amount
 	print("Enemy HP:", health)
+	_update_health_bar()
 
 	if health <= 0:
 		queue_free()
@@ -38,3 +42,8 @@ func apply_sync_state(state: Dictionary):
 	global_position = state["position"]
 	velocity = state["velocity"]
 	health = state["health"]
+	_update_health_bar()
+
+func _update_health_bar():
+	if health_bar and health_bar.has_method("update_from_health"):
+		health_bar.update_from_health(health, max_health)

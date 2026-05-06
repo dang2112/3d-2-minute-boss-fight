@@ -1,30 +1,32 @@
 extends CharacterBody3D
-# Bosses just extend this platonic enemy
 
 enum State {
 	IDLE,
+	PATROL,
 	CHASE,
 	ATTACK,
 	DEAD
-} # TODO: state transitions, more sophisticated state machine
+}
 
 var current_state = State.IDLE
 
 const GRAVITY = 9.8
 
-@onready var agent = $NavigationAgent3D
 @onready var attack_timer = $AttackTimer
+@onready var ray_from = $RayCast3D
 @onready var health_bar = $HealthBar3D
 
 var target = null
-var speed = 3.0
-var max_health = 100
-var health = 100
-var attack_range = 2.5
+var speed = 2.5
+var max_health = 80
+var health = 80
+var attack_range = 12.0
+var attack_damage = 12
+var attack_cooldown = 1.6
 
 func _ready():
 	add_to_group("network_sync_objects")
-	attack_timer.wait_time = 1.0
+	attack_timer.wait_time = attack_cooldown
 	attack_timer.timeout.connect(_on_attack_timer_timeout)
 
 func _physics_process(delta):
@@ -42,64 +44,70 @@ func _physics_process(delta):
 
 	match current_state:
 		State.IDLE:
-			look_for_player()
+			_look_for_player()
+		State.PATROL:
+			_patrol(delta)
 		State.CHASE:
-			chase_player()
+			_chase(delta)
 		State.ATTACK:
-			attack_player()
+			pass
 
 	move_and_slide()
 
-func look_for_player():
+func _look_for_player():
 	var players = get_tree().get_nodes_in_group("players")
-	var closest_player = _find_closest_player(players)
+	var closest = null
+	var closest_d = INF
+	for p in players:
+		if not is_instance_valid(p):
+			continue
+		var d = global_position.distance_to(p.global_position)
+		if d < closest_d:
+			closest_d = d
+			closest = p
 
-	if closest_player:
-		target = closest_player
+	if closest and closest_d <= attack_range * 1.5:
+		target = closest
 		current_state = State.CHASE
 
-func chase_player():
-	target = _find_closest_player(get_tree().get_nodes_in_group("players"))
-
-	if not target:
+func _chase(delta):
+	if not target or not is_instance_valid(target):
 		current_state = State.IDLE
 		return
 
+	var to_target = target.global_position - global_position
 	look_at(target.global_transform.origin, Vector3.UP)
-	agent.target_position = target.global_transform.origin
-	var next_pos = agent.get_next_path_position()
 
-	var direction = (next_pos - global_transform.origin).normalized()
-	velocity.x = direction.x * speed
-	velocity.z = direction.z * speed
-
-	if agent.is_navigation_finished():
-		velocity.x = 0.0
-		velocity.z = 0.0
-
-	if global_transform.origin.distance_to(target.global_transform.origin) < attack_range:
+	if to_target.length() <= attack_range:
 		current_state = State.ATTACK
 		attack_timer.start()
-
-func attack_player():
-	target = _find_closest_player(get_tree().get_nodes_in_group("players"))
-
-	if not target:
-		current_state = State.IDLE
+		velocity.x = 0
+		velocity.z = 0
 		return
 
-	velocity.x = 0.0
-	velocity.z = 0.0
+	var dir = to_target.normalized()
+	velocity.x = dir.x * speed
+	velocity.z = dir.z * speed
 
-	if global_transform.origin.distance_to(target.global_transform.origin) > attack_range:
-		current_state = State.CHASE
+func _patrol(delta):
+	# Simple placeholder patrol (no pathing yet)
+	velocity.x = 0
+	velocity.z = 0
 
 func _on_attack_timer_timeout():
 	if current_state != State.ATTACK:
 		return
-
 	if target and target.has_method("take_damage"):
-		target.take_damage(10)
+		# Raycast toward target to simulate projectile hit
+		var origin = global_transform.origin + Vector3(0, 1.2, 0)
+		var dir = (target.global_transform.origin - origin).normalized()
+		var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * attack_range)
+		query.exclude = [self]
+		var result = get_world_3d().direct_space_state.intersect_ray(query)
+		if not result.is_empty():
+			var collider = result["collider"]
+			if collider and collider.has_method("take_damage"):
+				collider.take_damage(attack_damage)
 
 func take_damage(amount):
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
@@ -109,30 +117,14 @@ func take_damage(amount):
 		return
 
 	health -= amount
-	print("Enemy HP:", health)
+	print("RangedEnemy HP:", health)
 	_update_health_bar()
-
 	if health <= 0:
 		die()
 
 func die():
 	current_state = State.DEAD
 	queue_free()
-
-func _find_closest_player(players: Array) -> Node3D:
-	var closest_player: Node3D = null
-	var closest_distance := INF
-
-	for player in players:
-		if not is_instance_valid(player):
-			continue
-
-		var distance = global_position.distance_squared_to(player.global_position)
-		if distance < closest_distance:
-			closest_distance = distance
-			closest_player = player
-
-	return closest_player
 
 func get_sync_state() -> Dictionary:
 	return {
