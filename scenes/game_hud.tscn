@@ -1,0 +1,54 @@
+[gd_scene load_steps=3 format=3 uid="uid://game_hud_scene_1"]
+
+[ext_resource type="Script" uid="uid://game_hud_script_1" path="res://scripts/game_hud.gd" id="1_hud"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.04, 0.05, 0.08, 0.78)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18, 0.2, 0.26, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_left = 8
+corner_radius_bottom_right = 8
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="RootPanel" type="PanelContainer" parent="."]
+anchors_preset = 1
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 0.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = -118.0
+offset_right = 340.0
+offset_bottom = -18.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="RootPanel"]
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="RootPanel/Margin"]
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="RootPanel/Margin/VBox"]
+text = "PLAYER STATUS"
+
+[node name="HealthLabel" type="Label" parent="RootPanel/Margin/VBox"]
+text = "HP: 100 / 200"
+
+[node name="HealthBar" type="ProgressBar" parent="RootPanel/Margin/VBox"]
+custom_minimum_size = Vector2(280, 20)
+max_value = 200.0
+value = 100.0
+show_percentage = false
+
+[node name="BuffLabel" type="Label" parent="RootPanel/Margin/VBox"]
+text = "DMG x1.0   SPD 6.0"

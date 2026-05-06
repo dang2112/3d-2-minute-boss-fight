@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3 uid="uid://dhwt8mny4wc5"]
+
+[ext_resource type="Script" uid="uid://bwkxfxvwl8g4" path="res://scripts/item.gd" id="1_item"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_item"]
+radius = 0.4
+height = 0.8
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_item"]
+radius = 0.4
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_item"]
+albedo_color = Color(1, 0, 0, 1)
+metallic = 0.5
+roughness = 0.3
+emission_enabled = true
+emission = Color(1, 0, 0, 0.5)
+
+[node name="Item" type="CharacterBody3D"]
+script = ExtResource("1_item")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_item")
+material = SubResource("StandardMaterial3D_item")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_item")
+
+[node name="Area3D" type="Area3D" parent="."]
+
+[node name="TriggerShape" type="CollisionShape3D" parent="Area3D"]
+shape = SubResource("SphereShape3D_item")

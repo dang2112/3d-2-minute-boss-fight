@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3 uid="uid://b6aysfyqo2yl8"]
+[gd_scene load_steps=6 format=3 uid="uid://b6aysfyqo2yl8"]
 
 [ext_resource type="Script" uid="uid://c4reg7cmgo5da" path="res://scripts/enemy_target.gd" id="1_dlko7"]
+[ext_resource type="Script" path="res://scripts/health_bar_3d.gd" id="2_healthbar"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_dgf10"]
 
@@ -18,3 +19,8 @@ shape = SubResource("BoxShape3D_dgf10")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("BoxMesh_tmmoa")
+
+[node name="HealthBar3D" type="Sprite3D" parent="."]
+position = Vector3(0, 1.9, 0)
+scale = Vector3(1.8, 0.18, 1)
+script = ExtResource("2_healthbar")
