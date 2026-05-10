@@ -135,7 +135,9 @@ func get_sync_state() -> Dictionary:
 	return {
 		"position": global_position,
 		"item_type": item_type,
-		"is_collected": is_collected
+		"is_collected": is_collected,
+		"sync_name": name,
+		"scene_path": "res://scenes/item.tscn"
 	}
 
 func apply_sync_state(state: Dictionary):
@@ -145,3 +147,4 @@ func apply_sync_state(state: Dictionary):
 	
 	global_position = state["position"]
 	item_type = state["item_type"]
+	_apply_item_color()

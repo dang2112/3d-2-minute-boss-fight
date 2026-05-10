@@ -35,6 +35,11 @@ func _physics_process(delta):
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
 		return
 
+	if _is_match_finished():
+		velocity = Vector3.ZERO
+		move_and_slide()
+		return
+
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	else:
@@ -168,7 +173,9 @@ func get_sync_state() -> Dictionary:
 		"velocity": velocity,
 		"rotation": rotation,
 		"health": health,
-		"state": current_state
+		"state": current_state,
+		"sync_name": name,
+		"scene_path": "res://scenes/ranged_enemy.tscn"
 	}
 
 func apply_sync_state(state: Dictionary):
@@ -182,3 +189,14 @@ func apply_sync_state(state: Dictionary):
 func _update_health_bar():
 	if health_bar and health_bar.has_method("update_from_health"):
 		health_bar.update_from_health(health, max_health)
+
+func _is_match_finished() -> bool:
+	var root_scene := get_tree().current_scene
+	if root_scene == null:
+		return false
+
+	var network_manager = root_scene.find_child("NetworkManager", true, false)
+	if network_manager == null:
+		return false
+
+	return network_manager.game_state == network_manager.GameState.VICTORY or network_manager.game_state == network_manager.GameState.GAME_OVER

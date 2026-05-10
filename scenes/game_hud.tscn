@@ -18,6 +18,14 @@ corner_radius_bottom_right = 8
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
 
+[node name="DimOverlay" type="ColorRect" parent="."]
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.72)
+visible = false
+
 [node name="Crosshair" type="Control" parent="."]
 anchor_left = 0.0
 anchor_top = 0.0
@@ -61,40 +69,66 @@ show_percentage = false
 [node name="BuffLabel" type="Label" parent="RootPanel/Margin/VBox"]
 text = "DMG x1.0   SPD 6.0"
 
-[node name="VictoryScreen" type="PanelContainer" parent="."]
+[node name="VictoryScreen" type="CenterContainer" parent="."]
 anchor_left = 0.0
 anchor_top = 0.0
 anchor_right = 1.0
 anchor_bottom = 1.0
+mouse_filter = 2
 visible = false
+
+[node name="VictoryPanel" type="PanelContainer" parent="VictoryScreen"]
+custom_minimum_size = Vector2(520, 260)
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="VictoryScreen"]
-alignment = 1
+[node name="MarginContainer" type="MarginContainer" parent="VictoryScreen/VictoryPanel"]
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
 
-[node name="Title" type="Label" parent="VictoryScreen/VBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="VictoryScreen/VictoryPanel/MarginContainer"]
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="VictoryScreen/VictoryPanel/MarginContainer/VBoxContainer"]
+horizontal_alignment = 1
 text = "VICTORY!"
 theme_override_font_sizes/font_size = 48
 
-[node name="Message" type="Label" parent="VictoryScreen/VBoxContainer"]
+[node name="Message" type="Label" parent="VictoryScreen/VictoryPanel/MarginContainer/VBoxContainer"]
+horizontal_alignment = 1
 text = "Boss Defeated! Press M to Return to Menu"
 theme_override_font_sizes/font_size = 24
 
-[node name="GameOverScreen" type="PanelContainer" parent="."]
+[node name="GameOverScreen" type="CenterContainer" parent="."]
 anchor_left = 0.0
 anchor_top = 0.0
 anchor_right = 1.0
 anchor_bottom = 1.0
+mouse_filter = 2
 visible = false
+
+[node name="GameOverPanel" type="PanelContainer" parent="GameOverScreen"]
+custom_minimum_size = Vector2(520, 260)
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="GameOverScreen"]
-alignment = 1
+[node name="MarginContainer" type="MarginContainer" parent="GameOverScreen/GameOverPanel"]
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
 
-[node name="Title" type="Label" parent="GameOverScreen/VBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="GameOverScreen/GameOverPanel/MarginContainer"]
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="GameOverScreen/GameOverPanel/MarginContainer/VBoxContainer"]
+horizontal_alignment = 1
 text = "GAME OVER"
 theme_override_font_sizes/font_size = 48
 
-[node name="Message" type="Label" parent="GameOverScreen/VBoxContainer"]
+[node name="Message" type="Label" parent="GameOverScreen/GameOverPanel/MarginContainer/VBoxContainer"]
+horizontal_alignment = 1
 text = "All Players Defeated! Press M to Return to Menu"
 theme_override_font_sizes/font_size = 24

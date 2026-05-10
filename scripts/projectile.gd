@@ -3,6 +3,7 @@ extends Node3D
 const PROJECTILE_SCENE_PATH := "res://scenes/projectile.tscn"
 
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
+@onready var hit_area: Area3D = $Area3D
 
 var direction: Vector3 = Vector3.FORWARD
 var speed := 10.0
@@ -71,14 +72,16 @@ func _check_hit(start_position: Vector3, end_position: Vector3):
 		return
 
 	var query := PhysicsRayQueryParameters3D.create(start_position, end_position)
-	query.exclude = [self]
+	query.exclude = []
+	if hit_area:
+		query.exclude.append(hit_area.get_rid())
 	query.collide_with_bodies = true
 	query.collide_with_areas = true
 
 	if owner_path != NodePath():
 		var owner_node := get_node_or_null(owner_path)
-		if owner_node:
-			query.exclude.append(owner_node)
+		if owner_node and owner_node is CollisionObject3D:
+			query.exclude.append((owner_node as CollisionObject3D).get_rid())
 
 	var result := world.direct_space_state.intersect_ray(query)
 	if result.is_empty():

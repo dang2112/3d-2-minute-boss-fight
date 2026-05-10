@@ -52,6 +52,8 @@ var boss: Node3D = null
 var game_state: GameState = GameState.SPAWNING
 var boss_spawn_timer: float = 0.0
 var boss_ranged_spawn_timer: float = 0.0
+var server_world_initializing := false
+var server_world_initialized := false
 
 func _get_navigation_region() -> Node3D:
 	"""Get or find navigation region"""
@@ -70,13 +72,10 @@ func _get_navigation_region() -> Node3D:
 
 func _ready():
 	_connect_multiplayer_signals()
-	# Delay spawn items/enemies to ensure scene tree is fully loaded
+	# Delay UI/world setup to ensure scene tree is fully loaded
 	await get_tree().process_frame
-	_spawn_items()
 	if multiplayer.is_server():
-		await get_tree().process_frame
-		_spawn_initial_enemies()
-		game_state = GameState.PLAYING
+		_initialize_server_world()
 
 func _physics_process(delta):
 	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
@@ -91,6 +90,7 @@ func host_game():
 
 	print("Server started")
 	_spawn_player_for_peer(multiplayer.get_unique_id())
+	_initialize_server_world()
 
 func join_game(ip):
 	peer = ENetMultiplayerPeer.new()
@@ -110,6 +110,27 @@ func _connect_multiplayer_signals():
 		multiplayer.connection_failed.connect(_on_connection_failed)
 	if not multiplayer.server_disconnected.is_connected(_on_server_disconnected):
 		multiplayer.server_disconnected.connect(_on_server_disconnected)
+
+func _initialize_server_world():
+	"""Spawn server-side items/enemies once multiplayer server is ready."""
+	if not multiplayer.is_server():
+		return
+	if server_world_initializing or server_world_initialized:
+		return
+
+	server_world_initializing = true
+
+	# Delay one frame so the scene tree and current scene are stable
+	await get_tree().process_frame
+
+	_spawn_items()
+	_spawn_initial_enemies()
+	game_state = GameState.PLAYING
+	boss = null
+	boss_ranged_spawn_timer = 0.0
+	server_world_initialized = true
+	server_world_initializing = false
+	print("Server world initialized")
 
 func _on_peer_connected(peer_id: int):
 	if not multiplayer.is_server():
@@ -198,9 +219,12 @@ func receive_world_state(state: Dictionary):
 			var player = PLAYER_SCENE.instantiate()
 			nav_region.add_child(player)
 			player.configure_for_peer(peer_id)
+			player.call_deferred("_update_local_player_state")
 			players[peer_id] = player
 
 		players[peer_id].apply_sync_state(state["players"][peer_id_string])
+		if players[peer_id].player_peer_id == multiplayer.get_unique_id():
+			players[peer_id].call_deferred("_update_local_player_state")
 
 	for synced_object in get_tree().get_nodes_in_group("network_sync_objects"):
 		var object_path = str(synced_object.get_path())
@@ -301,12 +325,12 @@ func _update_game_state(delta):
 	
 	match game_state:
 		GameState.PLAYING:
-			_check_enemies_alive()
-			if boss == null:
-				# All regular enemies dead - spawn boss
+			# Only spawn boss when all regular enemies are dead
+			if not _check_enemies_alive() and boss == null:
+				# All regular enemies dead - spawn boss once
 				_spawn_boss()
 				game_state = GameState.BOSS_FIGHT
-				print("Boss spawned! Entering BOSS_FIGHT state")
+				print("All enemies killed! Boss spawned! Entering BOSS_FIGHT state")
 		
 		GameState.BOSS_FIGHT:
 			boss_ranged_spawn_timer += delta
@@ -369,12 +393,29 @@ func _spawn_periodic_ranged_enemy():
 	for i in range(3):
 		var enemy = RANGED_SCENE.instantiate()
 		nav_region.add_child(enemy)
-		# Random position within arena bounds, far from center
+		# Spawn near a live player so the ranged enemy can reliably shoot,
+		# but keep enough space for dodging.
+		var anchor := _get_spawn_anchor_player_position()
 		var angle = randf() * TAU
-		var distance = randf_range(10.0, 15.0)
-		var pos = Vector3(cos(angle) * distance, 1, sin(angle) * distance)
+		var distance = randf_range(8.0, 11.0)
+		var pos = anchor + Vector3(cos(angle) * distance, 1, sin(angle) * distance)
 		enemy.global_position = pos
 		enemies.append(enemy)
+
+func _get_spawn_anchor_player_position() -> Vector3:
+	"""Pick a player position to bias boss-phase ranged spawns near combat."""
+	for peer_id in players.keys():
+		var player = players[peer_id]
+		if is_instance_valid(player) and not player.is_knocked:
+			return player.global_position
+
+	if not players.is_empty():
+		for peer_id in players.keys():
+			var player = players[peer_id]
+			if is_instance_valid(player):
+				return player.global_position
+
+	return Vector3.ZERO
 
 @rpc("authority", "reliable")
 func _broadcast_victory():
