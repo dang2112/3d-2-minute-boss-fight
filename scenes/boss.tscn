@@ -1,0 +1,30 @@
+[gd_scene load_steps=6 format=3 uid="uid://boss_scene"]
+
+[ext_resource type="Script" path="res://scripts/boss.gd" id="1_boss"]
+[ext_resource type="Script" path="res://scripts/health_bar_3d.gd" id="2_healthbar"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_boss"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_boss"]
+albedo_color = Color(1, 0, 1, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_boss"]
+material = SubResource("StandardMaterial3D_boss")
+
+[node name="Boss" type="CharacterBody3D"]
+script = ExtResource("1_boss")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_boss")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_boss")
+
+[node name="HealthBar3D" type="Sprite3D" parent="."]
+position = Vector3(0, 1.9, 0)
+scale = Vector3(1.6, 0.18, 1)
+script = ExtResource("2_healthbar")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+
+[node name="AttackTimer" type="Timer" parent="."]
