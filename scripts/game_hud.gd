@@ -3,8 +3,11 @@ extends CanvasLayer
 @onready var health_bar: ProgressBar = $RootPanel/Margin/VBox/HealthBar
 @onready var health_label: Label = $RootPanel/Margin/VBox/HealthLabel
 @onready var buff_label: Label = $RootPanel/Margin/VBox/BuffLabel
+@onready var victory_screen: PanelContainer = $VictoryScreen
+@onready var game_over_screen: PanelContainer = $GameOverScreen
 
 var local_player: Node = null
+var network_manager: Node = null
 
 func _ready():
 	health_bar.max_value = 200
@@ -14,9 +17,28 @@ func _ready():
 	health_bar.add_theme_stylebox_override("background", _make_fill_style(Color(0.08, 0.08, 0.08, 0.9)))
 	health_label.text = "HP: 100 / 200"
 	buff_label.text = "DMG x1.0   SPD 6.0"
+	
+	# Find network manager
+	network_manager = get_tree().root.get_node_or_null("NetworkManager")
 
 func _process(_delta):
 	local_player = _find_local_player()
+	
+	# Update game state screens
+	if network_manager:
+		match network_manager.game_state:
+			network_manager.GameState.VICTORY:
+				victory_screen.visible = true
+				game_over_screen.visible = false
+				return
+			network_manager.GameState.GAME_OVER:
+				game_over_screen.visible = true
+				victory_screen.visible = false
+				return
+			_:
+				victory_screen.visible = false
+				game_over_screen.visible = false
+	
 	if not local_player:
 		health_label.text = "Waiting for player..."
 		buff_label.text = ""

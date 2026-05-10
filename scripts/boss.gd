@@ -1,4 +1,6 @@
 extends CharacterBody3D
+
+const PROJECTILE_SCENE = preload("res://scenes/projectile.tscn")
 # Boss Enemy - 2-phase boss
 # Phase 1 (<100% HP): Heavy melee attacks
 # Phase 2 (<50% HP): Adds ranged projectile attacks
@@ -26,6 +28,7 @@ var attack_range = 3.0  # Melee range
 var melee_damage = 25
 var projectile_damage = 15
 var attack_cooldown = 2.0
+var phase2_cooldown = 0.5  # 4x faster in phase 2
 var phase2_trigger = 250  # 50% HP
 
 func _ready():
@@ -49,6 +52,7 @@ func _physics_process(delta):
 	# Check phase transition
 	if health <= phase2_trigger and current_phase == 1:
 		current_phase = 2
+		attack_timer.wait_time = phase2_cooldown
 		print("Boss entered Phase 2!")
 
 	match current_state:
@@ -125,16 +129,43 @@ func _on_attack_timer_timeout():
 			# Phase 1: Direct melee
 			target.take_damage(melee_damage)
 		else:
-			# Phase 2: Ranged projectile attack
-			var origin = global_transform.origin + Vector3(0, 1.2, 0)
-			var dir = (target.global_transform.origin - origin).normalized()
-			var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * 12.0)
-			query.exclude = [self]
-			var result = get_world_3d().direct_space_state.intersect_ray(query)
-			if not result.is_empty():
-				var collider = result["collider"]
-				if collider and collider.has_method("take_damage"):
-					collider.take_damage(projectile_damage)
+			# Phase 2: Visible ranged projectile attack
+			_spawn_projectile()
+
+	attack_timer.start()
+
+func _spawn_projectile():
+	var nav_region = _get_navigation_region()
+	if nav_region == null:
+		return
+
+	var projectile = PROJECTILE_SCENE.instantiate()
+	projectile.name = "BossProjectile_%d" % Time.get_ticks_usec()
+	nav_region.add_child(projectile)
+	projectile.global_position = global_transform.origin + Vector3(0, 1.2, 0)
+	if not target or not is_instance_valid(target):
+		projectile.queue_free()
+		return
+	# Aim vertically at the player's head if they have a Camera3D, otherwise at their center
+	var aim_y: float = target.global_position.y
+	var target_cam: Camera3D = target.get_node_or_null("Camera3D") as Camera3D
+	if target_cam != null:
+		aim_y = target_cam.global_position.y
+	# Aim on the same horizontal plane as the projectile but vertically at aim_y
+	var aim_target: Vector3 = Vector3(target.global_position.x, aim_y, target.global_position.z)
+	var dir: Vector3 = (aim_target - projectile.global_position).normalized()
+	projectile.setup(dir, 9.0, projectile_damage, self, 24.0)
+
+func _get_navigation_region() -> Node3D:
+	var root_scene := get_tree().current_scene
+	if root_scene == null:
+		return null
+
+	var found := root_scene.find_child("NavigationRegion3D", true, false)
+	if found is Node3D:
+		return found
+
+	return root_scene.find_child("MapArena", true, false) as Node3D
 
 func take_damage(amount):
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():

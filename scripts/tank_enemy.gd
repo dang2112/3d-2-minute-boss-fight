@@ -20,6 +20,7 @@ var target = null
 var speed = 2.0  # Slow
 var max_health = 200  # Durable
 var health = 200
+var detection_range = 10.0
 var attack_range = 2.5
 var attack_damage = 20  # High melee damage
 var attack_cooldown = 1.5
@@ -56,7 +57,7 @@ func look_for_player():
 	var players = get_tree().get_nodes_in_group("players")
 	var closest_player = _find_closest_player(players)
 
-	if closest_player:
+	if closest_player and global_position.distance_to(closest_player.global_position) <= detection_range:
 		target = closest_player
 		current_state = State.CHASE
 
@@ -64,6 +65,14 @@ func chase_player():
 	target = _find_closest_player(get_tree().get_nodes_in_group("players"))
 
 	if not target:
+		current_state = State.IDLE
+		return
+
+	if global_position.distance_to(target.global_position) > detection_range:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		attack_timer.stop()
+		target = null
 		current_state = State.IDLE
 		return
 
@@ -83,6 +92,14 @@ func attack_player():
 	target = _find_closest_player(get_tree().get_nodes_in_group("players"))
 
 	if not target:
+		current_state = State.IDLE
+		return
+
+	if global_position.distance_to(target.global_position) > detection_range:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		attack_timer.stop()
+		target = null
 		current_state = State.IDLE
 		return
 
