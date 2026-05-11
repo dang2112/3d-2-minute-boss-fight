@@ -13,6 +13,11 @@ const INPUT_BUFFER_SIZE = 8
 @onready var ray = $Camera3D/RayCast3D
 
 var health := 100
+var is_knocked := false
+var revivers: Array = []
+var reviver_heartbeat: Dictionary = {}
+var revive_progress: float = 0.0
+var revive_required: float = 3.0  # 3 seconds to revive
 var player_peer_id := 1
 var is_local_player := false
 
@@ -71,14 +76,28 @@ func _unhandled_input(event):
 	if not is_local_player:
 		return
 
+	# M key to return to main menu (when game over or victory)
+	if event.is_action_pressed("ui_menu"):
+		_return_to_main_menu()
+		return
+
+	if _is_match_finished():
+		return
+
 	if event is InputEventMouseMotion:
 		look_yaw -= event.relative.x * MOUSE_SENS
 		look_pitch = clamp(look_pitch - event.relative.y * MOUSE_SENS, -1.2, 1.2)
 		_apply_view_rotation(look_yaw, look_pitch)
 
 func _physics_process(delta):
+	if _is_match_finished():
+		velocity = Vector3.ZERO
+		return
+
 	if is_local_player:
 		collect_input()
+		if Input.is_action_pressed("interact") and not is_knocked:
+			_try_revive_nearby_player()
 
 	if not multiplayer.has_multiplayer_peer():
 		server_input = collected_input.duplicate(true)
@@ -89,6 +108,7 @@ func _physics_process(delta):
 		if is_local_player:
 			server_input = collected_input.duplicate(true)
 		_process_authoritative_physics(delta)
+		_update_revive_progress()
 	else:
 		if is_local_player:
 			send_input_to_server()
@@ -136,6 +156,15 @@ func submit_input(input_batch):
 	pending_inputs.clear()
 
 func _process_authoritative_physics(delta):
+	if _is_match_finished():
+		velocity = Vector3.ZERO
+		return
+
+	if is_knocked:
+		# Knocked player can only wait for revive
+		velocity = Vector3.ZERO
+		return
+
 	rotation.y = server_input["yaw"]
 	look_yaw = rotation.y
 
@@ -187,6 +216,17 @@ func _apply_view_rotation(yaw: float, pitch: float):
 	rotation.y = look_yaw
 	camera.rotation.x = look_pitch
 
+func _is_match_finished() -> bool:
+	var root_scene := get_tree().current_scene
+	if root_scene == null:
+		return false
+
+	var network_manager = root_scene.find_child("NetworkManager", true, false)
+	if network_manager == null:
+		return false
+
+	return network_manager.game_state == network_manager.GameState.VICTORY or network_manager.game_state == network_manager.GameState.GAME_OVER
+
 func pickup_item(item_type: int, effects: Dictionary):
 	"""Apply item effects to player"""
 	if not multiplayer.has_multiplayer_peer() or multiplayer.is_server():
@@ -214,7 +254,8 @@ func get_sync_state() -> Dictionary:
 		"yaw": rotation.y,
 		"health": health,
 		"damage_multiplier": damage_multiplier,
-		"current_speed": current_speed
+		"current_speed": current_speed,
+		"is_knocked": is_knocked
 	}
 
 func apply_sync_state(state: Dictionary):
@@ -223,12 +264,22 @@ func apply_sync_state(state: Dictionary):
 	health = state["health"]
 	damage_multiplier = state.get("damage_multiplier", 1.0)
 	current_speed = state.get("current_speed", SPEED)
+	is_knocked = state.get("is_knocked", false)
 	if not is_local_player:
 		rotation.y = state["yaw"]
+	_update_local_player_state()
 
 func take_damage(amount):
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
 		return
 
+	if is_knocked:
+		return
+
 	health -= amount
 	print("Player HP:", health)
+
+	if health <= 0:
+		var network_manager = get_tree().current_scene.find_child("NetworkManager", true, false)
+		if network_manager and network_manager.has_method("handle_player_death"):
+			network_manager.handle_player_death(player_peer_id)

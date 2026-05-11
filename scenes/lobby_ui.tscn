@@ -1,0 +1,71 @@
+[gd_scene load_steps=2 format=3 uid="uid://dafydryhe6rm"]
+
+[ext_resource type="Script" uid="uid://f62an4j6l0gn" path="res://scripts/lobby_ui.gd" id="1_lobby"]
+
+[node name="LobbyUI" type="CanvasLayer"]
+script = ExtResource("1_lobby")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Backdrop" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0352941, 0.0431373, 0.0666667, 0.88)
+
+[node name="CenterContainer" type="CenterContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/CenterContainer"]
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="Root/CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="VBox" type="VBoxContainer" parent="Root/CenterContainer/Panel/Margin"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Root/CenterContainer/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Lobby"
+horizontal_alignment = 1
+
+[node name="Status" type="Label" parent="Root/CenterContainer/Panel/Margin/VBox"]
+layout_mode = 2
+text = "Waiting for players"
+horizontal_alignment = 1
+
+[node name="Players" type="Label" parent="Root/CenterContainer/Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+text = "Waiting for network state..."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="ReadyButton" type="Button" parent="Root/CenterContainer/Panel/Margin/VBox"]
+layout_mode = 2
+text = "Ready Up"
+
+[connection signal="pressed" from="Root/CenterContainer/Panel/Margin/VBox/ReadyButton" to="." method="_on_ready_button_pressed"]

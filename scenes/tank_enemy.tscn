@@ -1,0 +1,30 @@
+[gd_scene load_steps=6 format=3 uid="uid://tank_enemy_scene"]
+
+[ext_resource type="Script" path="res://scripts/tank_enemy.gd" id="1_tank"]
+[ext_resource type="Script" path="res://scripts/health_bar_3d.gd" id="2_healthbar"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_tank"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tank"]
+albedo_color = Color(0, 1, 0, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_tank"]
+material = SubResource("StandardMaterial3D_tank")
+
+[node name="TankEnemy" type="CharacterBody3D"]
+script = ExtResource("1_tank")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_tank")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_tank")
+
+[node name="HealthBar3D" type="Sprite3D" parent="."]
+position = Vector3(0, 1.9, 0)
+scale = Vector3(1.6, 0.18, 1)
+script = ExtResource("2_healthbar")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+
+[node name="AttackTimer" type="Timer" parent="."]
