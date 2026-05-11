@@ -1,31 +1,33 @@
 extends CharacterBody3D
-# Bosses just extend this platonic enemy
+# Tank Enemy - slow, durable, high damage melee unit
+# Acts as a "road blocker" that forces players to deal with it
 
 enum State {
 	IDLE,
 	CHASE,
 	ATTACK,
 	DEAD
-} # TODO: state transitions, more sophisticated state machine
+}
 
 var current_state = State.IDLE
 
 const GRAVITY = 9.8
 
-@onready var agent = $NavigationAgent3D
 @onready var attack_timer = $AttackTimer
 @onready var health_bar = $HealthBar3D
 
 var target = null
-var speed = 3.0
-var max_health = 100
-var health = 100
+var speed = 2.0  # Slow
+var max_health = 200  # Durable
+var health = 200
 var detection_range = 10.0
 var attack_range = 2.5
+var attack_damage = 20  # High melee damage
+var attack_cooldown = 1.5
 
 func _ready():
 	add_to_group("network_sync_objects")
-	attack_timer.wait_time = 1.0
+	attack_timer.wait_time = attack_cooldown
 	attack_timer.timeout.connect(_on_attack_timer_timeout)
 
 func _physics_process(delta):
@@ -80,20 +82,16 @@ func chase_player():
 		return
 
 	look_at(target.global_transform.origin, Vector3.UP)
-	agent.target_position = target.global_transform.origin
-	var next_pos = agent.get_next_path_position()
 
-	var direction = (next_pos - global_transform.origin).normalized()
+	var direction = (target.global_transform.origin - global_transform.origin).normalized()
 	velocity.x = direction.x * speed
 	velocity.z = direction.z * speed
-
-	if agent.is_navigation_finished():
-		velocity.x = 0.0
-		velocity.z = 0.0
 
 	if global_transform.origin.distance_to(target.global_transform.origin) < attack_range:
 		current_state = State.ATTACK
 		attack_timer.start()
+		velocity.x = 0.0
+		velocity.z = 0.0
 
 func attack_player():
 	target = _find_closest_player(get_tree().get_nodes_in_group("players"))
@@ -121,7 +119,7 @@ func _on_attack_timer_timeout():
 		return
 
 	if target and target.has_method("take_damage"):
-		target.take_damage(10)
+		target.take_damage(attack_damage)
 
 func take_damage(amount):
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
@@ -131,7 +129,7 @@ func take_damage(amount):
 		return
 
 	health -= amount
-	print("Enemy HP:", health)
+	print("Tank Enemy HP:", health)
 	_update_health_bar()
 
 	if health <= 0:
@@ -164,7 +162,7 @@ func get_sync_state() -> Dictionary:
 		"health": health,
 		"state": current_state,
 		"sync_name": name,
-		"scene_path": "res://scenes/platonic_enemy_ai.tscn"
+		"scene_path": "res://scenes/tank_enemy.tscn"
 	}
 
 func apply_sync_state(state: Dictionary):

@@ -13,6 +13,11 @@ const INPUT_BUFFER_SIZE = 8
 @onready var ray = $Camera3D/RayCast3D
 
 var health := 100
+var is_knocked := false
+var revivers: Array = []
+var reviver_heartbeat: Dictionary = {}
+var revive_progress: float = 0.0
+var revive_required: float = 3.0  # 3 seconds to revive
 var player_peer_id := 1
 var is_local_player := false
 
@@ -71,14 +76,28 @@ func _unhandled_input(event):
 	if not is_local_player:
 		return
 
+	# M key to return to main menu (when game over or victory)
+	if event.is_action_pressed("ui_menu"):
+		_return_to_main_menu()
+		return
+
+	if _is_match_finished():
+		return
+
 	if event is InputEventMouseMotion:
 		look_yaw -= event.relative.x * MOUSE_SENS
 		look_pitch = clamp(look_pitch - event.relative.y * MOUSE_SENS, -1.2, 1.2)
 		_apply_view_rotation(look_yaw, look_pitch)
 
 func _physics_process(delta):
+	if _is_match_finished():
+		velocity = Vector3.ZERO
+		return
+
 	if is_local_player:
 		collect_input()
+		if Input.is_action_pressed("interact") and not is_knocked:
+			_try_revive_nearby_player()
 
 	if not multiplayer.has_multiplayer_peer():
 		server_input = collected_input.duplicate(true)
@@ -89,6 +108,7 @@ func _physics_process(delta):
 		if is_local_player:
 			server_input = collected_input.duplicate(true)
 		_process_authoritative_physics(delta)
+		_update_revive_progress()
 	else:
 		if is_local_player:
 			send_input_to_server()
@@ -136,6 +156,15 @@ func submit_input(input_batch):
 	pending_inputs.clear()
 
 func _process_authoritative_physics(delta):
+	if _is_match_finished():
+		velocity = Vector3.ZERO
+		return
+
+	if is_knocked:
+		# Knocked player can only wait for revive
+		velocity = Vector3.ZERO
+		return
+
 	rotation.y = server_input["yaw"]
 	look_yaw = rotation.y
 
@@ -187,6 +216,17 @@ func _apply_view_rotation(yaw: float, pitch: float):
 	rotation.y = look_yaw
 	camera.rotation.x = look_pitch
 
+func _is_match_finished() -> bool:
+	var root_scene := get_tree().current_scene
+	if root_scene == null:
+		return false
+
+	var network_manager = root_scene.find_child("NetworkManager", true, false)
+	if network_manager == null:
+		return false
+
+	return network_manager.game_state == network_manager.GameState.VICTORY or network_manager.game_state == network_manager.GameState.GAME_OVER
+
 func pickup_item(item_type: int, effects: Dictionary):
 	"""Apply item effects to player"""
 	if not multiplayer.has_multiplayer_peer() or multiplayer.is_server():
@@ -214,7 +254,8 @@ func get_sync_state() -> Dictionary:
 		"yaw": rotation.y,
 		"health": health,
 		"damage_multiplier": damage_multiplier,
-		"current_speed": current_speed
+		"current_speed": current_speed,
+		"is_knocked": is_knocked
 	}
 
 func apply_sync_state(state: Dictionary):
@@ -223,12 +264,137 @@ func apply_sync_state(state: Dictionary):
 	health = state["health"]
 	damage_multiplier = state.get("damage_multiplier", 1.0)
 	current_speed = state.get("current_speed", SPEED)
+	is_knocked = state.get("is_knocked", false)
 	if not is_local_player:
 		rotation.y = state["yaw"]
+	_update_local_player_state()
 
 func take_damage(amount):
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
 		return
 
+	if is_knocked:
+		return
+
 	health -= amount
-	print("Player HP:", health)
+	print("Player %d HP: %d" % [player_peer_id, health])
+
+	if health <= 0:
+		_set_knocked(true)
+
+func _set_knocked(knocked: bool):
+	"""Set knocked state on server and broadcast to clients"""
+	is_knocked = knocked
+	revive_progress = 0.0
+	revivers.clear()
+	reviver_heartbeat.clear()
+	if knocked:
+		velocity = Vector3.ZERO
+	print("Player %d knocked: %s" % [player_peer_id, knocked])
+	_broadcast_knocked_state.rpc(player_peer_id, knocked)
+
+@rpc("authority", "reliable")
+func _broadcast_knocked_state(p_id: int, knocked: bool):
+	if p_id != player_peer_id:
+		return
+	is_knocked = knocked
+	revive_progress = 0.0
+	revivers.clear()
+	reviver_heartbeat.clear()
+
+func _try_revive_nearby_player():
+	"""Check if looking at a knocked player nearby and start reviving"""
+	var camera_pos = camera.global_position
+	var camera_dir = -camera.global_transform.basis.z
+	
+	var query = PhysicsRayQueryParameters3D.create(camera_pos, camera_pos + camera_dir * 10.0)
+	var result = get_world_3d().direct_space_state.intersect_ray(query)
+	
+	if result.is_empty():
+		return
+	
+	var target = result["collider"]
+	if target == null or not target.is_in_group("players"):
+		return
+	
+	if target.is_knocked and target != self:
+		print("Starting revive on %s" % target.name)
+		if multiplayer.is_server():
+			_start_reviving(player_peer_id, target.player_peer_id)
+		else:
+			_start_reviving.rpc_id(1, player_peer_id, target.player_peer_id)
+
+@rpc("any_peer", "call_local", "reliable")
+func _start_reviving(reviver_id: int, target_id: int):
+	if not multiplayer.is_server():
+		return
+
+	var network_manager = _get_network_manager()
+	if network_manager == null:
+		return
+
+	var target_player = null
+	for peer_id in network_manager.players.keys():
+		var candidate = network_manager.players[peer_id]
+		if is_instance_valid(candidate) and candidate.player_peer_id == target_id:
+			target_player = candidate
+			break
+	
+	if target_player == null or not target_player.is_knocked:
+		return
+	
+	if reviver_id not in target_player.revivers:
+		target_player.revivers.append(reviver_id)
+		print("Reviver %d started reviving player %d" % [reviver_id, target_id])
+
+	target_player.reviver_heartbeat[reviver_id] = Time.get_ticks_msec() / 1000.0
+
+func _update_revive_progress():
+	"""Update revive progress for knocked players (server only)"""
+	if not is_knocked:
+		revive_progress = 0.0
+		revivers.clear()
+		reviver_heartbeat.clear()
+		return
+
+	var now: float = Time.get_ticks_msec() / 1000.0
+	var active_revivers: Array = []
+	for reviver_id in reviver_heartbeat.keys():
+		var last_seen: float = float(reviver_heartbeat[reviver_id])
+		if now - last_seen <= 0.35:
+			active_revivers.append(reviver_id)
+
+	revivers = active_revivers
+	if revivers.is_empty():
+		revive_progress = 0.0
+		return
+	
+	# Only count one reviver at a time for simplicity
+	revive_progress += 1.0 / (Engine.physics_ticks_per_second * revive_required)
+	
+	if revive_progress >= 1.0:
+		_revive_player()
+
+func _revive_player():
+	"""Revive knocked player"""
+	is_knocked = false
+	health = 100  # Revive with full health
+	revive_progress = 0.0
+	revivers.clear()
+	reviver_heartbeat.clear()
+	print("Player %d revived!" % player_peer_id)
+	_broadcast_knocked_state.rpc(player_peer_id, false)
+
+func _get_network_manager() -> Node:
+	var root_scene := get_tree().current_scene
+	if root_scene == null:
+		return null
+
+	return root_scene.find_child("NetworkManager", true, false)
+
+func _return_to_main_menu():
+	_return_to_menu_rpc.rpc()
+
+@rpc("authority", "reliable")
+func _return_to_menu_rpc():
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")

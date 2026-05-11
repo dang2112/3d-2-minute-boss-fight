@@ -3,8 +3,14 @@ extends CanvasLayer
 @onready var health_bar: ProgressBar = $RootPanel/Margin/VBox/HealthBar
 @onready var health_label: Label = $RootPanel/Margin/VBox/HealthLabel
 @onready var buff_label: Label = $RootPanel/Margin/VBox/BuffLabel
+@onready var root_panel: PanelContainer = $RootPanel
+@onready var dim_overlay: ColorRect = $DimOverlay
+@onready var crosshair: Control = $Crosshair
+@onready var victory_screen: CenterContainer = $VictoryScreen
+@onready var game_over_screen: CenterContainer = $GameOverScreen
 
 var local_player: Node = null
+var network_manager: Node = null
 
 func _ready():
 	health_bar.max_value = 200
@@ -14,9 +20,40 @@ func _ready():
 	health_bar.add_theme_stylebox_override("background", _make_fill_style(Color(0.08, 0.08, 0.08, 0.9)))
 	health_label.text = "HP: 100 / 200"
 	buff_label.text = "DMG x1.0   SPD 6.0"
+	
+	# Find network manager from the active game scene
+	network_manager = _find_network_manager()
 
 func _process(_delta):
+	if network_manager == null:
+		network_manager = _find_network_manager()
+
 	local_player = _find_local_player()
+	
+	# Update game state screens
+	if network_manager:
+		match network_manager.game_state:
+			network_manager.GameState.VICTORY:
+				root_panel.visible = false
+				dim_overlay.visible = true
+				victory_screen.visible = true
+				game_over_screen.visible = false
+				crosshair.visible = false
+				return
+			network_manager.GameState.GAME_OVER:
+				root_panel.visible = false
+				dim_overlay.visible = true
+				game_over_screen.visible = true
+				victory_screen.visible = false
+				crosshair.visible = false
+				return
+			_:
+				root_panel.visible = true
+				dim_overlay.visible = false
+				victory_screen.visible = false
+				game_over_screen.visible = false
+				crosshair.visible = true
+	
 	if not local_player:
 		health_label.text = "Waiting for player..."
 		buff_label.text = ""
@@ -37,6 +74,13 @@ func _find_local_player() -> Node:
 		if player and player.is_local_player:
 			return player
 	return null
+
+func _find_network_manager() -> Node:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null
+
+	return scene.find_child("NetworkManager", true, false)
 
 func _make_fill_style(color: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
