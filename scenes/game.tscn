@@ -1,16 +1,13 @@
-[gd_scene load_steps=12 format=3 uid="uid://emjlxvk6out5"]
+[gd_scene load_steps=10 format=3 uid="uid://emjlxvk6out5"]
 
 [ext_resource type="PackedScene" uid="uid://qjhe18alttvy" path="res://scenes/demo_obstacle.tscn" id="2_lnu2h"]
 [ext_resource type="PackedScene" uid="uid://b6aysfyqo2yl8" path="res://scenes/enemy_target.tscn" id="3_lbhrr"]
 [ext_resource type="PackedScene" uid="uid://dbmib3feaytlk" path="res://scenes/platonic_enemy_ai.tscn" id="4_lbhrr"]
-[ext_resource type="PackedScene" uid="uid://ranged_enemy_res" path="res://scenes/ranged_enemy.tscn" id="6_ranged"]
-[ext_resource type="PackedScene" uid="uid://tank_enemy_scene" path="res://scenes/tank_enemy.tscn" id="8_tank"]
-[ext_resource type="PackedScene" uid="uid://boss_scene" path="res://scenes/boss.tscn" id="9_boss"]
-[ext_resource type="PackedScene" uid="uid://game_hud_scene_1" path="res://scenes/game_hud.tscn" id="7_hud"]
 [ext_resource type="Script" uid="uid://qgibf15yyk4p" path="res://scripts/network_manager.gd" id="5_iywne"]
-[ext_resource type="PackedScene" path="res://scenes/ranged_enemy.tscn" id="6_ranged"]
-[ext_resource type="PackedScene" uid="uid://cbvckhlobpunv" path="res://scenes/boss.tscn" id="6_vtaks"]
-[ext_resource type="PackedScene" path="res://scenes/game_hud.tscn" id="7_hud"]
+[ext_resource type="PackedScene" uid="uid://bu1gwhf7a3gus" path="res://scenes/ranged_enemy.tscn" id="6_ranged"]
+[ext_resource type="PackedScene" uid="uid://game_hud_scene_1" path="res://scenes/game_hud.tscn" id="7_hud"]
+[ext_resource type="PackedScene" uid="uid://b5kn2ag22rpcc" path="res://scenes/tank_enemy.tscn" id="8_tank"]
+[ext_resource type="PackedScene" uid="uid://q8rkow6i0sfr" path="res://scenes/boss.tscn" id="9_boss"]
 [ext_resource type="PackedScene" uid="uid://dafydryhe6rm" path="res://scenes/lobby_ui.tscn" id="8_lobby"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_lnu2h"]
@@ -44,10 +41,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.38566, 1.30363, 0)
 [node name="RangedEnemy" parent="NavigationRegion3D" instance=ExtResource("6_ranged")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 1.30363, 0)
 
-[node name="TankEnemy" parent="NavigationRegion3D" instance=ExtResource("5_0tnpc")]
+[node name="TankEnemy" parent="NavigationRegion3D" instance=ExtResource("8_tank")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.30724, 2.03607, -5.78295)
 
-[node name="Boss" parent="NavigationRegion3D" instance=ExtResource("6_vtaks")]
+[node name="Boss" parent="NavigationRegion3D" instance=ExtResource("9_boss")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21.4601, 0.86461, -3.17669)
 
 [node name="OmniLight3D" type="OmniLight3D" parent="."]

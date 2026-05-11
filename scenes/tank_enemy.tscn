@@ -1,7 +1,7 @@
-[gd_scene load_steps=6 format=3 uid="uid://tank_enemy_scene"]
+[gd_scene load_steps=6 format=3 uid="uid://b5kn2ag22rpcc"]
 
-[ext_resource type="Script" path="res://scripts/tank_enemy.gd" id="1_tank"]
-[ext_resource type="Script" path="res://scripts/health_bar_3d.gd" id="2_healthbar"]
+[ext_resource type="Script" uid="uid://nj56o6vuw6yg" path="res://scripts/tank_enemy.gd" id="1_tank"]
+[ext_resource type="Script" uid="uid://dwoloi1vgmbjh" path="res://scripts/health_bar_3d.gd" id="2_healthbar"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_tank"]
 
@@ -21,8 +21,7 @@ shape = SubResource("BoxShape3D_tank")
 mesh = SubResource("BoxMesh_tank")
 
 [node name="HealthBar3D" type="Sprite3D" parent="."]
-position = Vector3(0, 1.9, 0)
-scale = Vector3(1.6, 0.18, 1)
+transform = Transform3D(1.6, 0, 0, 0, 0.18, 0, 0, 0, 1, 0, 1.9, 0)
 script = ExtResource("2_healthbar")
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]

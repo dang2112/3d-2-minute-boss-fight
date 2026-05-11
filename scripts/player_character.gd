@@ -13,11 +13,6 @@ const INPUT_BUFFER_SIZE = 8
 @onready var ray = $Camera3D/RayCast3D
 
 var health := 100
-var is_knocked := false
-var revivers: Array = []
-var reviver_heartbeat: Dictionary = {}
-var revive_progress: float = 0.0
-var revive_required: float = 3.0  # 3 seconds to revive
 var player_peer_id := 1
 var is_local_player := false
 
@@ -96,8 +91,6 @@ func _physics_process(delta):
 
 	if is_local_player:
 		collect_input()
-		if Input.is_action_pressed("interact") and not is_knocked:
-			_try_revive_nearby_player()
 
 	if not multiplayer.has_multiplayer_peer():
 		server_input = collected_input.duplicate(true)
@@ -108,7 +101,6 @@ func _physics_process(delta):
 		if is_local_player:
 			server_input = collected_input.duplicate(true)
 		_process_authoritative_physics(delta)
-		_update_revive_progress()
 	else:
 		if is_local_player:
 			send_input_to_server()
@@ -157,11 +149,6 @@ func submit_input(input_batch):
 
 func _process_authoritative_physics(delta):
 	if _is_match_finished():
-		velocity = Vector3.ZERO
-		return
-
-	if is_knocked:
-		# Knocked player can only wait for revive
 		velocity = Vector3.ZERO
 		return
 
@@ -254,8 +241,7 @@ func get_sync_state() -> Dictionary:
 		"yaw": rotation.y,
 		"health": health,
 		"damage_multiplier": damage_multiplier,
-		"current_speed": current_speed,
-		"is_knocked": is_knocked
+		"current_speed": current_speed
 	}
 
 func apply_sync_state(state: Dictionary):
@@ -264,16 +250,11 @@ func apply_sync_state(state: Dictionary):
 	health = state["health"]
 	damage_multiplier = state.get("damage_multiplier", 1.0)
 	current_speed = state.get("current_speed", SPEED)
-	is_knocked = state.get("is_knocked", false)
 	if not is_local_player:
 		rotation.y = state["yaw"]
-	_update_local_player_state()
 
 func take_damage(amount):
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
-		return
-
-	if is_knocked:
 		return
 
 	health -= amount
@@ -283,3 +264,9 @@ func take_damage(amount):
 		var network_manager = get_tree().current_scene.find_child("NetworkManager", true, false)
 		if network_manager and network_manager.has_method("handle_player_death"):
 			network_manager.handle_player_death(player_peer_id)
+
+func _return_to_main_menu():
+	if multiplayer.multiplayer_peer:
+		multiplayer.multiplayer_peer = null
+
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")

@@ -303,14 +303,21 @@ func _try_start_session():
 
 func _end_session_to_lobby():
 	game_phase = GAME_PHASE_LOBBY
+	game_state = GameState.SPAWNING
 	active_peer_ids.clear()
 
 	for peer_key in connected_peers.keys():
 		connected_peers[peer_key] = false
 
 	_reset_game_world()
+
+	server_world_initialized = false
+	server_world_initializing = false
+
 	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
 		reset_game_world_remote.rpc()
+		_initialize_server_world()
+
 	_broadcast_lobby_state()
 
 @rpc("authority", "reliable")
@@ -477,27 +484,21 @@ func _reset_game_world(allow_client_reset := false):
 
 	for synced_object in get_tree().get_nodes_in_group("network_sync_objects"):
 		if is_instance_valid(synced_object):
-			synced_object.free()
+			synced_object.queue_free()
 
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			enemy.queue_free()
+	enemies.clear()
+
+	for item in items:
+		if is_instance_valid(item):
+			item.queue_free()
 	items.clear()
+
 	items_spawned = false
-
-	for template in initial_world_templates:
-		if not is_instance_valid(template):
-			continue
-
-		var instance = template.duplicate()
-		if instance == null:
-			continue
-
-		nav_region.add_child(instance)
-
-		if instance is CharacterBody3D and instance.has_method("get") and instance.get("item_type") != null:
-			items.append(instance)
-		elif instance.has_method("get") and instance.get("item_type") != null:
-			items.append(instance)
-
-	items_spawned = true
+	enemies_spawned = false
+	boss = null
 
 @rpc("authority", "reliable")
 func reset_game_world_remote():
@@ -584,13 +585,13 @@ func _check_enemies_alive() -> bool:
 	return false
 
 func _all_players_knocked() -> bool:
-	"""Return true if all players are knocked out"""
+	"""Return true if no alive players remain in the active match."""
 	if players.is_empty():
 		return false
 	
 	for peer_id in players:
 		var player = players[peer_id]
-		if is_instance_valid(player) and not player.is_knocked:
+		if is_instance_valid(player) and int(player.health) > 0:
 			return false
 	return true
 
@@ -630,7 +631,7 @@ func _get_spawn_anchor_player_position() -> Vector3:
 	"""Pick a player position to bias boss-phase ranged spawns near combat."""
 	for peer_id in players.keys():
 		var player = players[peer_id]
-		if is_instance_valid(player) and not player.is_knocked:
+		if is_instance_valid(player) and int(player.health) > 0:
 			return player.global_position
 
 	if not players.is_empty():
