@@ -160,11 +160,6 @@ func _process_authoritative_physics(delta):
 		velocity = Vector3.ZERO
 		return
 
-	if is_knocked:
-		# Knocked player can only wait for revive
-		velocity = Vector3.ZERO
-		return
-
 	rotation.y = server_input["yaw"]
 	look_yaw = rotation.y
 
@@ -277,124 +272,15 @@ func take_damage(amount):
 		return
 
 	health -= amount
-	print("Player %d HP: %d" % [player_peer_id, health])
+	print("Player HP:", health)
 
 	if health <= 0:
-		_set_knocked(true)
-
-func _set_knocked(knocked: bool):
-	"""Set knocked state on server and broadcast to clients"""
-	is_knocked = knocked
-	revive_progress = 0.0
-	revivers.clear()
-	reviver_heartbeat.clear()
-	if knocked:
-		velocity = Vector3.ZERO
-	print("Player %d knocked: %s" % [player_peer_id, knocked])
-	_broadcast_knocked_state.rpc(player_peer_id, knocked)
-
-@rpc("authority", "reliable")
-func _broadcast_knocked_state(p_id: int, knocked: bool):
-	if p_id != player_peer_id:
-		return
-	is_knocked = knocked
-	revive_progress = 0.0
-	revivers.clear()
-	reviver_heartbeat.clear()
-
-func _try_revive_nearby_player():
-	"""Check if looking at a knocked player nearby and start reviving"""
-	var camera_pos = camera.global_position
-	var camera_dir = -camera.global_transform.basis.z
-	
-	var query = PhysicsRayQueryParameters3D.create(camera_pos, camera_pos + camera_dir * 10.0)
-	var result = get_world_3d().direct_space_state.intersect_ray(query)
-	
-	if result.is_empty():
-		return
-	
-	var target = result["collider"]
-	if target == null or not target.is_in_group("players"):
-		return
-	
-	if target.is_knocked and target != self:
-		print("Starting revive on %s" % target.name)
-		if multiplayer.is_server():
-			_start_reviving(player_peer_id, target.player_peer_id)
-		else:
-			_start_reviving.rpc_id(1, player_peer_id, target.player_peer_id)
-
-@rpc("any_peer", "call_local", "reliable")
-func _start_reviving(reviver_id: int, target_id: int):
-	if not multiplayer.is_server():
-		return
-
-	var network_manager = _get_network_manager()
-	if network_manager == null:
-		return
-
-	var target_player = null
-	for peer_id in network_manager.players.keys():
-		var candidate = network_manager.players[peer_id]
-		if is_instance_valid(candidate) and candidate.player_peer_id == target_id:
-			target_player = candidate
-			break
-	
-	if target_player == null or not target_player.is_knocked:
-		return
-	
-	if reviver_id not in target_player.revivers:
-		target_player.revivers.append(reviver_id)
-		print("Reviver %d started reviving player %d" % [reviver_id, target_id])
-
-	target_player.reviver_heartbeat[reviver_id] = Time.get_ticks_msec() / 1000.0
-
-func _update_revive_progress():
-	"""Update revive progress for knocked players (server only)"""
-	if not is_knocked:
-		revive_progress = 0.0
-		revivers.clear()
-		reviver_heartbeat.clear()
-		return
-
-	var now: float = Time.get_ticks_msec() / 1000.0
-	var active_revivers: Array = []
-	for reviver_id in reviver_heartbeat.keys():
-		var last_seen: float = float(reviver_heartbeat[reviver_id])
-		if now - last_seen <= 0.35:
-			active_revivers.append(reviver_id)
-
-	revivers = active_revivers
-	if revivers.is_empty():
-		revive_progress = 0.0
-		return
-	
-	# Only count one reviver at a time for simplicity
-	revive_progress += 1.0 / (Engine.physics_ticks_per_second * revive_required)
-	
-	if revive_progress >= 1.0:
-		_revive_player()
-
-func _revive_player():
-	"""Revive knocked player"""
-	is_knocked = false
-	health = 100  # Revive with full health
-	revive_progress = 0.0
-	revivers.clear()
-	reviver_heartbeat.clear()
-	print("Player %d revived!" % player_peer_id)
-	_broadcast_knocked_state.rpc(player_peer_id, false)
-
-func _get_network_manager() -> Node:
-	var root_scene := get_tree().current_scene
-	if root_scene == null:
-		return null
-
-	return root_scene.find_child("NetworkManager", true, false)
+		var network_manager = get_tree().current_scene.find_child("NetworkManager", true, false)
+		if network_manager and network_manager.has_method("handle_player_death"):
+			network_manager.handle_player_death(player_peer_id)
 
 func _return_to_main_menu():
-	_return_to_menu_rpc.rpc()
+	if multiplayer.multiplayer_peer:
+		multiplayer.multiplayer_peer = null
 
-@rpc("authority", "reliable")
-func _return_to_menu_rpc():
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")

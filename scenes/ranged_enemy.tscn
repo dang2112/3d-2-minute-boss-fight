@@ -1,7 +1,7 @@
-[gd_scene load_steps=7 format=3 uid="uid://ranged_enemy_1"]
+[gd_scene load_steps=6 format=3 uid="uid://bu1gwhf7a3gus"]
 
-[ext_resource type="Script" uid="uid://ranged_enemy_script" path="res://scripts/ranged_enemy.gd" id="1_ranged"]
-[ext_resource type="Script" path="res://scripts/health_bar_3d.gd" id="2_healthbar"]
+[ext_resource type="Script" uid="uid://j868aphx5iu0" path="res://scripts/ranged_enemy.gd" id="1_ranged"]
+[ext_resource type="Script" uid="uid://dwoloi1vgmbjh" path="res://scripts/health_bar_3d.gd" id="2_healthbar"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_r1"]
 
@@ -21,8 +21,7 @@ shape = SubResource("BoxShape3D_r1")
 mesh = SubResource("BoxMesh_r1")
 
 [node name="HealthBar3D" type="Sprite3D" parent="."]
-position = Vector3(0, 1.9, 0)
-scale = Vector3(1.5, 0.18, 1)
+transform = Transform3D(1.5, 0, 0, 0, 0.18, 0, 0, 0, 1, 0, 1.9, 0)
 script = ExtResource("2_healthbar")
 
 [node name="RayCast3D" type="RayCast3D" parent="."]

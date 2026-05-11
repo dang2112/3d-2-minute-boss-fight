@@ -8,6 +8,9 @@ extends CanvasLayer
 @onready var crosshair: Control = $Crosshair
 @onready var victory_screen: CenterContainer = $VictoryScreen
 @onready var game_over_screen: CenterContainer = $GameOverScreen
+@onready var center_message_label: Label = $CenterMessage
+
+var message_timer := 0.0
 
 var local_player: Node = null
 var network_manager: Node = null
@@ -23,10 +26,16 @@ func _ready():
 	
 	# Find network manager from the active game scene
 	network_manager = _find_network_manager()
+	center_message_label.text = ""
 
-func _process(_delta):
+func _process(delta):
 	if network_manager == null:
 		network_manager = _find_network_manager()
+
+	if message_timer > 0.0:
+		message_timer = max(message_timer - delta, 0.0)
+		if message_timer == 0.0:
+			center_message_label.text = ""
 
 	local_player = _find_local_player()
 	
@@ -68,6 +77,10 @@ func _process(_delta):
 	health_bar.value = clamp(hp, 0, max_hp)
 	health_label.text = "HP: %d / %d" % [hp, max_hp]
 	buff_label.text = "DMG x%.1f   SPD %.1f" % [dmg, speed]
+
+func show_message(message: String):
+	center_message_label.text = message
+	message_timer = 3.0
 
 func _find_local_player() -> Node:
 	for player in get_tree().get_nodes_in_group("players"):

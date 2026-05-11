@@ -12,6 +12,7 @@ enum GameState { SPAWNING, PLAYING, BOSS_FIGHT, VICTORY, GAME_OVER }
 
 const PORT := 12345
 const PLAYER_SPAWN_POSITION := Vector3(0, 8, 0)
+const PLAYER_SPAWN_SPACING := 2.0
 const PLAYER_SCENE := preload("res://scenes/player_character.tscn")
 const ITEM_SCENE := preload("res://scenes/item.tscn")
 const RANGED_SCENE := preload("res://scenes/ranged_enemy.tscn")
@@ -19,6 +20,9 @@ const TANK_SCENE := preload("res://scenes/tank_enemy.tscn")
 const MELEE_SCENE := preload("res://scenes/platonic_enemy_ai.tscn")
 const BOSS_SCENE := preload("res://scenes/boss.tscn")
 const MAIN_MENU_SCENE := "res://scenes/main_menu.tscn"
+
+const GAME_PHASE_LOBBY := "lobby"
+const GAME_PHASE_IN_SESSION := "in_session"
 
 # Enemy spawn positions: melee/tank enemies (relatively close)
 const MELEE_SPAWNS := [
@@ -47,6 +51,10 @@ var players: Dictionary = {}
 var items: Array = []
 var enemies: Array = []
 var items_spawned := false
+var connected_peers: Dictionary = {}
+var active_peer_ids: Array[int] = []
+var game_phase := GAME_PHASE_LOBBY
+var initial_world_templates: Array = []
 var enemies_spawned := false
 var boss: Node3D = null
 var game_state: GameState = GameState.SPAWNING
@@ -72,10 +80,13 @@ func _get_navigation_region() -> Node3D:
 
 func _ready():
 	_connect_multiplayer_signals()
+	_connect_lobby_ui()
 	# Delay UI/world setup to ensure scene tree is fully loaded
 	await get_tree().process_frame
 	if multiplayer.is_server():
 		_initialize_server_world()
+	_capture_initial_world_snapshot()
+	_push_lobby_state_to_ui()
 
 func _physics_process(delta):
 	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
@@ -89,7 +100,8 @@ func host_game():
 	multiplayer.multiplayer_peer = peer
 
 	print("Server started")
-	_spawn_player_for_peer(multiplayer.get_unique_id())
+	connected_peers[str(multiplayer.get_unique_id())] = false
+	_broadcast_lobby_state()
 	_initialize_server_world()
 
 func join_game(ip):
@@ -136,16 +148,24 @@ func _on_peer_connected(peer_id: int):
 	if not multiplayer.is_server():
 		return
 
-	_spawn_player_for_peer(peer_id)
+	connected_peers[str(peer_id)] = false
+	_broadcast_lobby_state()
 
 func _on_peer_disconnected(peer_id: int):
+	connected_peers.erase(str(peer_id))
+	active_peer_ids.erase(peer_id)
 	_remove_player(peer_id)
 
 	if multiplayer.is_server():
 		despawn_player_remote.rpc(peer_id)
+		if active_peer_ids.is_empty():
+			_end_session_to_lobby()
+		else:
+			_broadcast_lobby_state()
 
 func _on_connected_to_server():
 	print("Connected to server")
+	_push_lobby_state_to_ui()
 
 func _on_connection_failed():
 	print("Connection failed")
@@ -166,9 +186,35 @@ func _spawn_player_for_peer(peer_id: int):
 
 	var player = PLAYER_SCENE.instantiate()
 	nav_region.add_child(player)
-	player.global_position = PLAYER_SPAWN_POSITION
+	player.global_position = _get_spawn_position_for_peer(peer_id)
 	player.configure_for_peer(peer_id)
 	players[peer_id] = player
+
+func _get_spawn_position_for_peer(peer_id: int) -> Vector3:
+	var peer_keys := connected_peers.keys()
+	peer_keys.sort()
+
+	var spawn_index := peer_keys.find(str(peer_id))
+	if spawn_index == -1:
+		spawn_index = players.size()
+
+	var column := spawn_index % 2
+	var row := spawn_index / 2
+	var offset_x := (float(column) - 0.5) * PLAYER_SPAWN_SPACING
+	var offset_z := float(row) * PLAYER_SPAWN_SPACING
+
+	return PLAYER_SPAWN_POSITION + Vector3(offset_x, 0.0, offset_z)
+
+func _connect_lobby_ui():
+	var lobby_ui = get_node_or_null("../LobbyUI")
+	if lobby_ui and not lobby_ui.ready_toggled.is_connected(_on_lobby_ready_toggled):
+		lobby_ui.ready_toggled.connect(_on_lobby_ready_toggled)
+
+func _get_lobby_ui():
+	return get_node_or_null("../LobbyUI")
+
+func _get_hud():
+	return get_node_or_null("../HUD")
 
 func _remove_player(peer_id: int):
 	if not players.has(peer_id):
@@ -179,6 +225,100 @@ func _remove_player(peer_id: int):
 
 	if is_instance_valid(player):
 		player.queue_free()
+
+func handle_player_death(peer_id: int):
+	if not multiplayer.is_server():
+		return
+
+	if not active_peer_ids.has(peer_id):
+		return
+
+	active_peer_ids.erase(peer_id)
+	_remove_player(peer_id)
+	despawn_player_remote.rpc(peer_id)
+
+	var death_message := "Player %d has died!" % peer_id
+	if active_peer_ids.has(multiplayer.get_unique_id()):
+		_push_match_message(death_message)
+	for active_peer_id in active_peer_ids:
+		if active_peer_id != multiplayer.get_unique_id():
+			receive_match_message.rpc_id(active_peer_id, death_message)
+
+	if active_peer_ids.is_empty():
+		_end_session_to_lobby()
+	else:
+		_broadcast_lobby_state()
+
+func _on_lobby_ready_toggled(ready: bool):
+	if not multiplayer.has_multiplayer_peer():
+		return
+
+	if multiplayer.is_server():
+		_set_peer_ready(multiplayer.get_unique_id(), ready)
+	else:
+		rpc_id(1, "request_set_ready", ready)
+
+@rpc("any_peer", "reliable")
+func request_set_ready(ready: bool):
+	if not multiplayer.is_server():
+		return
+
+	if game_phase != GAME_PHASE_LOBBY:
+		return
+
+	_set_peer_ready(multiplayer.get_remote_sender_id(), ready)
+
+func _set_peer_ready(peer_id: int, ready: bool):
+	var peer_key := str(peer_id)
+	if not connected_peers.has(peer_key):
+		return
+
+	connected_peers[peer_key] = ready
+	_broadcast_lobby_state()
+	_try_start_session()
+
+func _try_start_session():
+	if game_phase != GAME_PHASE_LOBBY:
+		return
+
+	if connected_peers.is_empty():
+		return
+
+	for peer_key in connected_peers.keys():
+		if not bool(connected_peers[peer_key]):
+			return
+
+	game_phase = GAME_PHASE_IN_SESSION
+	active_peer_ids.clear()
+
+	var peer_keys := connected_peers.keys()
+	peer_keys.sort()
+	for peer_key in peer_keys:
+		var peer_id = int(peer_key)
+		active_peer_ids.append(peer_id)
+		connected_peers[peer_key] = false
+		_spawn_player_for_peer(peer_id)
+
+	_broadcast_lobby_state()
+
+func _end_session_to_lobby():
+	game_phase = GAME_PHASE_LOBBY
+	game_state = GameState.SPAWNING
+	active_peer_ids.clear()
+
+	for peer_key in connected_peers.keys():
+		connected_peers[peer_key] = false
+
+	_reset_game_world()
+
+	server_world_initialized = false
+	server_world_initializing = false
+
+	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
+		reset_game_world_remote.rpc()
+		_initialize_server_world()
+
+	_broadcast_lobby_state()
 
 @rpc("authority", "reliable")
 func despawn_player_remote(peer_id: int):
@@ -238,6 +378,51 @@ func receive_world_state(state: Dictionary):
 		if synced_object and synced_object.has_method("apply_sync_state"):
 			synced_object.apply_sync_state(state["objects"][object_path])
 
+func _make_lobby_state() -> Dictionary:
+	return {
+		"phase": game_phase,
+		"connected_peers": connected_peers.duplicate(true),
+		"active_peer_ids": active_peer_ids.duplicate()
+	}
+
+func _broadcast_lobby_state():
+	_push_lobby_state_to_ui()
+	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
+		receive_lobby_state.rpc(_make_lobby_state())
+
+func _push_lobby_state_to_ui():
+	var lobby_ui = _get_lobby_ui()
+	if lobby_ui:
+		var local_peer_id := 1
+		if multiplayer.has_multiplayer_peer():
+			local_peer_id = multiplayer.get_unique_id()
+		lobby_ui.update_lobby_state(_make_lobby_state(), local_peer_id)
+
+func _push_match_message(message: String):
+	var hud = _get_hud()
+	if hud and hud.has_method("show_message"):
+		hud.show_message(message)
+
+@rpc("authority", "reliable")
+func receive_lobby_state(state: Dictionary):
+	if multiplayer.is_server():
+		return
+
+	game_phase = str(state.get("phase", GAME_PHASE_LOBBY))
+	connected_peers = state.get("connected_peers", {}).duplicate(true)
+	active_peer_ids.clear()
+	for peer_id in state.get("active_peer_ids", []):
+		active_peer_ids.append(int(peer_id))
+
+	_push_lobby_state_to_ui()
+
+@rpc("authority", "reliable")
+func receive_match_message(message: String):
+	if multiplayer.is_server():
+		return
+
+	_push_match_message(message)
+
 func _instantiate_synced_object(object_path: String, object_state: Dictionary, nav_region: Node3D) -> Node:
 	var scene_path := str(object_state.get("scene_path", ""))
 	if scene_path.is_empty():
@@ -281,6 +466,46 @@ func _spawn_items():
 
 	items_spawned = true
 	print("Spawned %d items" % items.size())
+
+func _capture_initial_world_snapshot():
+	if not initial_world_templates.is_empty():
+		return
+
+	for synced_object in get_tree().get_nodes_in_group("network_sync_objects"):
+		initial_world_templates.append(synced_object.duplicate())
+
+func _reset_game_world(allow_client_reset := false):
+	if not allow_client_reset and not multiplayer.is_server() and multiplayer.has_multiplayer_peer():
+		return
+
+	var nav_region = _get_navigation_region()
+	if nav_region == null:
+		return
+
+	for synced_object in get_tree().get_nodes_in_group("network_sync_objects"):
+		if is_instance_valid(synced_object):
+			synced_object.queue_free()
+
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			enemy.queue_free()
+	enemies.clear()
+
+	for item in items:
+		if is_instance_valid(item):
+			item.queue_free()
+	items.clear()
+
+	items_spawned = false
+	enemies_spawned = false
+	boss = null
+
+@rpc("authority", "reliable")
+func reset_game_world_remote():
+	if multiplayer.is_server():
+		return
+
+	_reset_game_world(true)
 
 func _spawn_initial_enemies():
 	"""Spawn melee/tank enemies at fixed positions (server only)"""
@@ -360,13 +585,13 @@ func _check_enemies_alive() -> bool:
 	return false
 
 func _all_players_knocked() -> bool:
-	"""Return true if all players are knocked out"""
+	"""Return true if no alive players remain in the active match."""
 	if players.is_empty():
 		return false
 	
 	for peer_id in players:
 		var player = players[peer_id]
-		if is_instance_valid(player) and not player.is_knocked:
+		if is_instance_valid(player) and int(player.health) > 0:
 			return false
 	return true
 
@@ -406,7 +631,7 @@ func _get_spawn_anchor_player_position() -> Vector3:
 	"""Pick a player position to bias boss-phase ranged spawns near combat."""
 	for peer_id in players.keys():
 		var player = players[peer_id]
-		if is_instance_valid(player) and not player.is_knocked:
+		if is_instance_valid(player) and int(player.health) > 0:
 			return player.global_position
 
 	if not players.is_empty():

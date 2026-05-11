@@ -57,27 +57,23 @@ func _physics_process(delta):
 		State.CHASE:
 			_chase(delta)
 		State.ATTACK:
-			pass
+			_attack()
 
 	move_and_slide()
 
 func _look_for_player():
-	var players = get_tree().get_nodes_in_group("players")
-	var closest = null
-	var closest_d = INF
-	for p in players:
-		if not is_instance_valid(p):
-			continue
-		var d = global_position.distance_to(p.global_position)
-		if d < closest_d:
-			closest_d = d
-			closest = p
+	var closest = _find_closest_player(get_tree().get_nodes_in_group("players"))
+	if closest == null:
+		return
 
+	var closest_d = global_position.distance_to(closest.global_position)
 	if closest and closest_d <= attack_range * 1.5:
 		target = closest
 		current_state = State.CHASE
 
 func _chase(delta):
+	target = _find_closest_player(get_tree().get_nodes_in_group("players"))
+
 	if not target or not is_instance_valid(target):
 		current_state = State.IDLE
 		return
@@ -101,9 +97,30 @@ func _patrol(delta):
 	velocity.x = 0
 	velocity.z = 0
 
+func _attack():
+	target = _find_closest_player(get_tree().get_nodes_in_group("players"))
+
+	if not target or not is_instance_valid(target):
+		current_state = State.IDLE
+		return
+
+	var to_target = target.global_position - global_position
+	look_at(target.global_transform.origin, Vector3.UP)
+	velocity.x = 0
+	velocity.z = 0
+
+	if to_target.length() > attack_range:
+		current_state = State.CHASE
+
 func _on_attack_timer_timeout():
 	if current_state != State.ATTACK:
 		return
+
+	target = _find_closest_player(get_tree().get_nodes_in_group("players"))
+	if not target or not is_instance_valid(target):
+		current_state = State.IDLE
+		return
+
 	# If target went invalid or moved out of attack range, stop attacking
 	if not target or not is_instance_valid(target):
 		current_state = State.IDLE
@@ -149,6 +166,23 @@ func _get_navigation_region() -> Node3D:
 		return found
 
 	return root_scene.find_child("MapArena", true, false) as Node3D
+
+func _find_closest_player(players: Array) -> Node3D:
+	var closest_player: Node3D = null
+	var closest_distance := INF
+
+	for player in players:
+		if not is_instance_valid(player):
+			continue
+		if player.has_method("get") and float(player.get("health")) <= 0.0:
+			continue
+
+		var distance = global_position.distance_squared_to(player.global_position)
+		if distance < closest_distance:
+			closest_distance = distance
+			closest_player = player
+
+	return closest_player
 
 func take_damage(amount):
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
